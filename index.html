@@ -217,7 +217,7 @@
     <header class="flex justify-between items-end mb-2 relative">
         <div>
             <div class="flex items-center gap-4">
-                <h1 class="text-4xl font-bold text-gray-800 tracking-wide">⌨️ 우리 반 타자 연습기</h1>
+                <h1 id="app-main-title" class="text-4xl font-bold text-gray-800 tracking-wide">⌨️ 우리 반 타자 연습기</h1>
                 <span id="mode-badge" class="bg-[#ff4757] text-white px-3 py-1 rounded-full text-sm font-bold shadow-md transition-colors">한글 모드</span>
             </div>
             <p class="text-gray-500 font-bold mt-2">키보드를 누르면 화면의 키가 반짝거려요!</p>
@@ -390,7 +390,7 @@
         </div>
 
         <!-- 옵션 2: 단축키 연습 모드 -->
-        <div class="mb-8 p-5 bg-gray-50 rounded-xl border border-gray-200">
+        <div class="mb-5 p-5 bg-gray-50 rounded-xl border border-gray-200">
             <p class="text-gray-700 font-bold mb-3 text-lg">2. 단축키 연습 옵션</p>
             <label class="flex items-start cursor-pointer">
                 <div class="flex items-center h-6 mt-0.5">
@@ -399,11 +399,17 @@
                 <div class="ml-3">
                     <span class="text-gray-700 font-bold text-lg">단축키 기본 기능 차단하기</span>
                     <p class="text-sm text-gray-500 mt-1 leading-snug">
-                        Ctrl+S, Alt+방향키 등 브라우저 기능이 실행되지 않고 타건 애니메이션만 표시됩니다. (위의 1번 옵션과 중복 가능)<br>
-                        <span class="text-[#ff6b6b] text-xs">※ Alt+Tab이나 Win 키 등 운영체제 고유 단축키는 구조상 화면 전환을 완벽히 막을 수는 없습니다.</span>
+                        Ctrl+S, Alt+방향키 등 브라우저 기능이 실행되지 않고 타건 애니메이션만 표시됩니다.<br>
+                        <span class="text-[#ff6b6b] text-xs">※ 운영체제 고유 단축키는 브라우저 특성상 차단이 어려울 수 있습니다.</span>
                     </p>
                 </div>
             </label>
+        </div>
+
+        <!-- 옵션 3: 제목 설정 (새로 추가됨) -->
+        <div class="mb-8 p-5 bg-gray-50 rounded-xl border border-gray-200">
+            <p class="text-gray-700 font-bold mb-3 text-lg">3. 프로그램 제목 설정</p>
+            <input type="text" id="title-input-field" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#55efc4] text-lg font-bold text-gray-700" placeholder="제목을 입력하세요">
         </div>
 
         <button onclick="saveSettings()" class="w-full py-4 bg-[#55efc4] hover:bg-[#00b894] text-white text-2xl rounded-xl shadow-md transition font-bold">
@@ -423,6 +429,8 @@
     const typingArea = document.getElementById('typing-area');
     const keyboardContainer = document.getElementById('keyboard-container');
     const modeBadge = document.getElementById('mode-badge');
+    const appMainTitle = document.getElementById('app-main-title');
+    const titleInputField = document.getElementById('title-input-field');
 
     // ==========================================
     // 설정창 로직
@@ -432,8 +440,10 @@
         const content = document.getElementById('settings-content');
         
         if (backdrop.classList.contains('opacity-0')) {
+            // 열기 전에 현재 설정값 반영
             document.querySelector(`input[name="typing-option"][value="${allowTyping ? 'allow' : 'prevent'}"]`).checked = true;
             document.getElementById('prevent-shortcut-option').checked = preventShortcuts;
+            titleInputField.value = appMainTitle.innerText;
             
             backdrop.classList.remove('opacity-0', 'pointer-events-none');
             content.classList.remove('scale-90');
@@ -447,9 +457,9 @@
     }
 
     function saveSettings() {
+        // 1. 글씨 표시 옵션
         const option = document.querySelector('input[name="typing-option"]:checked').value;
         allowTyping = (option === 'allow');
-        preventShortcuts = document.getElementById('prevent-shortcut-option').checked;
         
         if (!allowTyping) {
             typingArea.value = ''; 
@@ -460,6 +470,15 @@
             typingArea.readOnly = false; 
             typingArea.placeholder = "여기에 키보드로 자유롭게 글씨를 입력해 보세요!";
             typingArea.style.color = '#55efc4';
+        }
+
+        // 2. 단축키 차단 옵션
+        preventShortcuts = document.getElementById('prevent-shortcut-option').checked;
+
+        // 3. 제목 설정
+        if (titleInputField.value.trim() !== "") {
+            appMainTitle.innerText = titleInputField.value;
+            document.title = titleInputField.value; // 브라우저 탭 제목도 변경
         }
         
         toggleSettings();
@@ -476,15 +495,12 @@
         const osc = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
         
-        // 맑고 청명한 소리를 위해 sine 파형 사용
         osc.type = 'sine';
-        // 높은 주파수 대역으로 설정하여 맑은 느낌 강조 (예: 1200Hz)
         osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
         
-        // 아주 짧고 경쾌한 엔벨로프 설정 (틱! 하는 느낌)
         gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.01); // 빠른 어택
-        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1); // 빠른 디케이
+        gainNode.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.01); 
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1); 
         
         osc.connect(gainNode);
         gainNode.connect(audioCtx.destination);
@@ -524,36 +540,18 @@
     });
 
     // ==========================================
-    // 키코드 정규화 (물리적 위치를 고려하여 좌/우 Shift 완벽 분리)
+    // 키코드 정규화
     // ==========================================
     function getVirtualKeyCode(e) {
-        // ★ 오른쪽 Shift키 강제 매핑 (물리적 위치 기반)
         if (e.key === 'Shift') {
             return e.location === 2 ? 'ShiftRight' : 'ShiftLeft';
         }
-        
-        // 일부 브라우저에서 오른쪽 Shift의 code가 ShiftLeft로 잘못 오는 경우 대비
-        if (e.code === 'ShiftRight') {
-            return 'ShiftRight';
-        }
-
-        // ★ Fn 키 처리 (맥북 및 일부 키보드 지원)
-        if (e.key === 'Fn' || e.code === 'Fn' || e.key === 'WakeUp') {
-            return 'Fn';
-        }
-
-        // 한/영 키 처리
-        if (e.code === 'Lang1' || e.code === 'HangulMode' || e.code === 'KanaMode' || e.key === 'Hangul' || e.keyCode === 21 || (e.code === 'AltRight' && e.key === 'Process')) {
-            return 'Lang1';
-        }
+        if (e.code === 'ShiftRight') return 'ShiftRight';
+        if (e.key === 'Fn' || e.code === 'Fn' || e.key === 'WakeUp') return 'Fn';
+        if (e.code === 'Lang1' || e.code === 'HangulMode' || e.code === 'KanaMode' || e.key === 'Hangul' || e.keyCode === 21 || (e.code === 'AltRight' && e.key === 'Process')) return 'Lang1';
         if (e.code === 'AltRight') return 'Lang1';
-
-        // 한자 키 처리
-        if (e.code === 'Lang2' || e.code === 'HanjaMode' || e.key === 'Hanja' || e.keyCode === 25 || (e.code === 'ControlRight' && e.key === 'Process')) {
-            return 'Lang2'; 
-        }
+        if (e.code === 'Lang2' || e.code === 'HanjaMode' || e.key === 'Hanja' || e.keyCode === 25 || (e.code === 'ControlRight' && e.key === 'Process')) return 'Lang2'; 
         if (e.code === 'ControlRight') return 'ControlRight'; 
-        
         return e.code;
     }
 
@@ -564,11 +562,8 @@
         typingArea.focus();
     };
 
-    // 포커스를 잃었을 때(Alt+Tab, 윈도우키 등) 켜져 있는 모든 키 초기화 (멈춤 방지)
     function clearAllKeys() {
         document.querySelectorAll('.key.active').forEach(k => k.classList.remove('active'));
-        
-        // Shift 쌍자음 원상 복구
         document.querySelectorAll('.key.dual').forEach(key => {
             key.querySelector('.ko.normal').classList.remove('hidden');
             key.querySelector('.ko.shift').classList.add('hidden');
@@ -576,20 +571,16 @@
     }
     window.addEventListener('blur', clearAllKeys);
 
-    // --- 마우스/터치 지원 ---
     document.querySelectorAll('.key').forEach(key => {
         const activateKey = (e) => {
             if (e.type !== 'touchstart') e.preventDefault(); 
             key.classList.add('active');
             playTypeSound();
-
             if (key.dataset.code === 'Lang1') toggleKoreanMode();
         };
-        
         const deactivateKey = () => {
             key.classList.remove('active');
         };
-
         key.addEventListener('mousedown', activateKey);
         key.addEventListener('touchstart', activateKey, {passive: true});
         key.addEventListener('mouseup', deactivateKey);
@@ -597,47 +588,27 @@
         key.addEventListener('touchend', deactivateKey);
     });
 
-    // --- 물리 키보드 이벤트 ---
     window.addEventListener('keydown', (e) => {
         if (preventShortcuts) {
-            if (e.ctrlKey || e.altKey || e.metaKey || e.key.startsWith('F') || e.code === 'PrintScreen') {
-                e.preventDefault();
-            }
+            if (e.ctrlKey || e.altKey || e.metaKey || e.key.startsWith('F') || e.code === 'PrintScreen') e.preventDefault();
         }
-
-        if (!e.repeat) {
-            playTypeSound();
-        }
-
+        if (!e.repeat) playTypeSound();
         const virtualCode = getVirtualKeyCode(e);
         const keyElement = document.querySelector(`.key[data-code="${virtualCode}"]`);
-        
         if (keyElement) {
             keyElement.classList.add('active');
-            
-            // 한영키 등 IME 개입으로 keyup이 잘 안 먹는 키들을 위한 강제 꺼짐 타이머 (0.15초 뒤 꺼짐)
             if (virtualCode === 'Lang1' || virtualCode === 'Lang2') {
-                setTimeout(() => {
-                    keyElement.classList.remove('active');
-                }, 150);
+                setTimeout(() => { keyElement.classList.remove('active'); }, 150);
             }
         }
-
-        if (virtualCode === 'Lang1' && !e.repeat) {
-            toggleKoreanMode();
-        }
-
-        if (!allowTyping && (virtualCode === 'Space' || virtualCode === 'Enter' || virtualCode === 'Backspace')) {
-            e.preventDefault();
-        }
-
+        if (virtualCode === 'Lang1' && !e.repeat) toggleKoreanMode();
+        if (!allowTyping && (virtualCode === 'Space' || virtualCode === 'Enter' || virtualCode === 'Backspace')) e.preventDefault();
         if (virtualCode === 'ShiftLeft' || virtualCode === 'ShiftRight') {
             document.querySelectorAll('.key.dual').forEach(key => {
                 key.querySelector('.ko.normal').classList.add('hidden');
                 key.querySelector('.ko.shift').classList.remove('hidden');
             });
         }
-        
         if (virtualCode === 'Tab') {
             e.preventDefault();
             if (allowTyping) {
@@ -652,11 +623,7 @@
     window.addEventListener('keyup', (e) => {
         const virtualCode = getVirtualKeyCode(e);
         const keyElement = document.querySelector(`.key[data-code="${virtualCode}"]`);
-        
-        if (keyElement) {
-            keyElement.classList.remove('active'); 
-        }
-
+        if (keyElement) keyElement.classList.remove('active'); 
         if (virtualCode === 'ShiftLeft' || virtualCode === 'ShiftRight') {
             document.querySelectorAll('.key.dual').forEach(key => {
                 key.querySelector('.ko.normal').classList.remove('hidden');
@@ -665,7 +632,6 @@
         }
     });
 
-    // 화면 클릭 시 입력창으로 다시 포커스
     document.body.addEventListener('click', (e) => {
         if (document.getElementById('modal-backdrop').classList.contains('opacity-0')) {
             typingArea.focus();
