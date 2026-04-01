@@ -411,19 +411,31 @@
             <input type="text" id="title-input-field" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#55efc4] text-lg font-bold text-gray-700" placeholder="제목을 입력하세요">
         </div>
 
-        <!-- 옵션 4: 타건음(스위치) 설정 -->
+        <!-- 옵션 4: 타건음(스위치) 설정 (새롭게 업그레이드!) -->
         <div class="mb-8 p-5 bg-gray-50 rounded-xl border border-gray-200">
-            <p class="text-gray-700 font-bold mb-3 text-lg">4. 타건음(스위치) 설정</p>
-            <select id="sound-select-field" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#55efc4] text-lg font-bold text-gray-700">
-                <option value="custom">내 타자음 (타자음.mp3)</option>
+            <div class="flex justify-between items-center mb-3">
+                <p class="text-gray-700 font-bold text-lg">4. 타건음(스위치) 설정</p>
+                <button onclick="clearCustomSounds()" id="clear-sounds-btn" class="hidden text-xs bg-red-100 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-200 font-bold transition">추가된 소리 지우기</button>
+            </div>
+            
+            <select id="sound-select-field" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:outline-none focus:border-[#55efc4] text-lg font-bold text-gray-700 mb-4">
+                <option value="brown">갈축 (부드러운 도각도각) - 기본</option>
                 <option value="blue">청축 (경쾌한 찰칵찰칵)</option>
-                <option value="brown">갈축 (부드러운 도각도각)</option>
                 <option value="red">적축 (조용한 보글보글)</option>
                 <option value="mute">무음 (소리 끄기)</option>
+                <option disabled>──────────</option>
+                <option value="custom">깃허브 타자음 (타자음.mp3)</option>
+                <!-- 내가 추가한 소리들이 이 아래에 생깁니다! -->
             </select>
-            <p class="text-sm text-[#ff6b6b] mt-2 font-bold leading-snug">
-                ※ '내 타자음'을 선택하시려면 깃허브 저장소에 반드시 <br>[타자음.mp3] 파일을 업로드하셔야 합니다!
-            </p>
+            
+            <div class="p-4 bg-white rounded-xl border-2 border-dashed border-gray-300">
+                <p class="text-sm font-bold text-gray-800 mb-2">🎵 내 PC에서 새로운 타자음 추가하기</p>
+                <input type="file" id="sound-upload-input" accept="audio/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-[#e0f2fe] file:text-[#2563eb] hover:file:bg-[#dbeafe] cursor-pointer transition">
+                <p class="text-xs text-gray-400 mt-2 font-bold leading-snug">
+                    ※ 원하시는 mp3, wav 파일을 마음껏 추가해 보세요.<br>
+                    ※ 한 번 추가하면 브라우저가 기억하여 다음에도 쓸 수 있습니다! (용량 1MB 이하 권장)
+                </p>
+            </div>
         </div>
 
         <button onclick="saveSettings()" class="w-full py-4 bg-[#55efc4] hover:bg-[#00b894] text-white text-2xl rounded-xl shadow-md transition font-bold">
@@ -439,9 +451,10 @@
     let allowTyping = true;
     let preventShortcuts = false; 
     let isKoreanMode = true; 
-    let currentSoundType = 'custom'; // 기본 타건음 설정
-    let customAudioBuffer = null; // 커스텀 타자음 오디오 버퍼
-    let lastLang1Time = 0; // 한영키 중복 입력 방지용 시간 기록
+    let currentSoundType = 'brown'; // 기본값 갈축
+    let customAudioBuffer = null; // 깃허브 타자음용
+    let customSoundLibrary = {}; // 내가 직접 업로드한 소리들 보관함
+    let lastLang1Time = 0; 
     
     const typingArea = document.getElementById('typing-area');
     const keyboardContainer = document.getElementById('keyboard-container');
@@ -451,28 +464,18 @@
     const soundSelectField = document.getElementById('sound-select-field');
 
     // ==========================================
-    // 웹 오디오 API & 타건음 로직
+    // 저장된 설정 불러오기
     // ==========================================
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new AudioContext();
-
-    // 사용자가 업로드한 '타자음.mp3' 파일 불러오기
-    async function loadCustomSound() {
-        try {
-            const response = await fetch('타자음.mp3');
-            if (response.ok) {
-                const arrayBuffer = await response.arrayBuffer();
-                customAudioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            }
-        } catch (e) {
-            console.error("타자음.mp3 파일을 불러올 수 없습니다. 깃허브에 업로드되었는지 확인해주세요.");
+    function updateClearButton() {
+        const savedCustomSounds = JSON.parse(localStorage.getItem('kb_custom_sounds') || '[]');
+        const btn = document.getElementById('clear-sounds-btn');
+        if (savedCustomSounds.length > 0) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
         }
     }
-    
-    // 페이지 로드 시 타자음.mp3 미리 로딩 시도
-    loadCustomSound();
 
-    // 저장된 로컬 설정 불러오기 (v2 키를 사용하여 강제로 제목 갱신)
     function loadSavedSettings() {
         try {
             const savedTitle = localStorage.getItem('kb_title_v2');
@@ -497,9 +500,20 @@
                 preventShortcuts = (savedShortcutOption === 'true');
             }
 
+            // 내가 추가한 소리들을 드롭다운에 추가
+            const savedCustomSounds = JSON.parse(localStorage.getItem('kb_custom_sounds') || '[]');
+            savedCustomSounds.forEach(sound => {
+                const option = document.createElement('option');
+                option.value = sound.id;
+                option.text = sound.name;
+                soundSelectField.appendChild(option);
+            });
+            updateClearButton();
+
             const savedSound = localStorage.getItem('kb_sound');
             if (savedSound) {
                 currentSoundType = savedSound;
+                soundSelectField.value = savedSound;
             }
         } catch (e) {
             console.warn("미리보기 환경에서는 로컬 스토리지가 제한될 수 있습니다.");
@@ -508,25 +522,154 @@
     
     loadSavedSettings();
 
-    // 타건음 합성 및 재생 함수
+    // ==========================================
+    // 타자음 파일 직접 업로드 처리 (핵심 추가 기능!)
+    // ==========================================
+    document.getElementById('sound-upload-input').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const base64Data = evt.target.result;
+            const soundId = 'custom_' + Date.now();
+            const soundName = '내 소리: ' + file.name;
+            
+            try {
+                // 스토리지에 저장
+                let savedSounds = JSON.parse(localStorage.getItem('kb_custom_sounds') || '[]');
+                savedSounds.push({ id: soundId, name: soundName, data: base64Data });
+                localStorage.setItem('kb_custom_sounds', JSON.stringify(savedSounds));
+                
+                // 설정창 드롭다운에 즉시 추가
+                const option = document.createElement('option');
+                option.value = soundId;
+                option.text = soundName;
+                soundSelectField.appendChild(option);
+                
+                // 지금 막 올린 소리로 바로 변경
+                soundSelectField.value = soundId;
+                currentSoundType = soundId;
+                localStorage.setItem('kb_sound', soundId);
+                
+                // 오디오 엔진이 켜져있으면 즉시 사용 가능하게 변환
+                if(audioCtx) {
+                    decodeAndStore(soundId, base64Data);
+                }
+                
+                updateClearButton();
+                e.target.value = ''; // 파일 인풋 초기화
+                
+            } catch(error) {
+                console.error(error);
+                alert('파일 용량이 너무 커서 저장할 수 없습니다. 1MB 이하의 짧은 파일을 선택해주세요!');
+            }
+        };
+        reader.readAsDataURL(file);
+    });
+
+    function clearCustomSounds() {
+        if(confirm("PC에서 직접 추가하신 모든 소리 목록을 지우시겠습니까? (깃허브의 타자음.mp3는 유지됩니다.)")) {
+            localStorage.removeItem('kb_custom_sounds');
+            customSoundLibrary = {};
+            
+            // 드롭다운에서 제거
+            Array.from(soundSelectField.options).forEach(opt => {
+                if(opt.value.startsWith('custom_') && opt.value !== 'custom') {
+                    soundSelectField.removeChild(opt);
+                }
+            });
+            
+            // 현재 설정이 지운 소리였다면 기본 갈축으로 돌아가기
+            if(currentSoundType.startsWith('custom_') && currentSoundType !== 'custom') {
+                currentSoundType = 'brown';
+                soundSelectField.value = 'brown';
+                localStorage.setItem('kb_sound', 'brown');
+            }
+            
+            updateClearButton();
+            alert("모두 깔끔하게 삭제되었습니다!");
+        }
+    }
+
+    // ==========================================
+    // 웹 오디오 API & 타건음 로직
+    // ==========================================
+    let audioCtx = null;
+
+    async function decodeAndStore(id, base64Data) {
+        try {
+            const response = await fetch(base64Data);
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            customSoundLibrary[id] = audioBuffer;
+        } catch(e) {
+            console.error("소리 변환 중 오류 발생:", e);
+        }
+    }
+
+    // 오디오 초기화 (사용자 첫 액션 시 동작)
+    function initAudio() {
+        if (audioCtx) return;
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            
+            // 깃허브의 타자음.mp3 가져오기
+            fetch('타자음.mp3')
+                .then(response => {
+                    if (response.ok) return response.arrayBuffer();
+                    throw new Error('Network response was not ok.');
+                })
+                .then(arrayBuffer => audioCtx.decodeAudioData(arrayBuffer))
+                .then(buffer => { customAudioBuffer = buffer; })
+                .catch(e => { /* 깃허브 타자음 없음 무시 */ });
+
+            // 내가 브라우저에 저장해둔 타자음들 모두 가져오기
+            const savedCustomSounds = JSON.parse(localStorage.getItem('kb_custom_sounds') || '[]');
+            savedCustomSounds.forEach(sound => {
+                decodeAndStore(sound.id, sound.data);
+            });
+        } catch(e) {
+            console.error("오디오 시스템 초기화 실패", e);
+        }
+    }
+
+    // 첫 액션 시 오디오 준비
+    document.body.addEventListener('click', initAudio, { once: true });
+    window.addEventListener('keydown', initAudio, { once: true });
+
+    function playSoundBuffer(buffer) {
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 1.0; 
+        source.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        source.start();
+    }
+
     function playTypeSound() {
-        if (currentSoundType === 'mute') return; // 무음 모드 시 바로 종료
+        if (currentSoundType === 'mute') return;
+
+        initAudio(); 
+        if (!audioCtx) return;
 
         if(audioCtx.state === 'suspended') audioCtx.resume();
         
-        // 1. '내 타자음' 선택 & 파일이 성공적으로 로드된 경우
+        // 1. 깃허브에 올린 '타자음.mp3' 재생
         if (currentSoundType === 'custom' && customAudioBuffer) {
-            const source = audioCtx.createBufferSource();
-            source.buffer = customAudioBuffer;
-            const gainNode = audioCtx.createGain();
-            gainNode.gain.value = 1.0; // 원래 볼륨
-            source.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            source.start();
+            playSoundBuffer(customAudioBuffer);
             return;
         }
 
-        // 2. 파일이 없거나 기계식 축을 선택한 경우 (웹 오디오 합성)
+        // 2. 내가 방금 내 PC에서 추가한 소리 재생
+        if (currentSoundType.startsWith('custom_') && customSoundLibrary[currentSoundType]) {
+            playSoundBuffer(customSoundLibrary[currentSoundType]);
+            return;
+        }
+
+        // 3. 브라우저 자체 합성 기계식 타건음 (갈축, 청축, 적축)
         const osc = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
         const filter = audioCtx.createBiquadFilter();
@@ -538,7 +681,6 @@
         const now = audioCtx.currentTime;
 
         if (currentSoundType === 'blue') {
-            // 청축: 찰칵거리는 날카로운 고음
             osc.type = 'square';
             osc.frequency.setValueAtTime(800, now);
             osc.frequency.exponentialRampToValueAtTime(300, now + 0.05);
@@ -550,7 +692,6 @@
             osc.start(now);
             osc.stop(now + 0.05);
         } else if (currentSoundType === 'red') {
-            // 적축: 조용하고 부드러운 저음 보글보글
             osc.type = 'sine';
             osc.frequency.setValueAtTime(150, now);
             osc.frequency.exponentialRampToValueAtTime(50, now + 0.07);
@@ -562,7 +703,6 @@
             osc.start(now);
             osc.stop(now + 0.07);
         } else {
-            // 갈축 (또는 custom 선택했는데 파일이 없을 때의 기본값): 도각도각
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(300, now);
             osc.frequency.exponentialRampToValueAtTime(100, now + 0.06);
@@ -587,7 +727,7 @@
             document.querySelector(`input[name="typing-option"][value="${allowTyping ? 'allow' : 'prevent'}"]`).checked = true;
             document.getElementById('prevent-shortcut-option').checked = preventShortcuts;
             titleInputField.value = appMainTitle.innerText;
-            soundSelectField.value = currentSoundType; // 타건음 셀렉트박스 값 동기화
+            soundSelectField.value = currentSoundType; 
             
             backdrop.classList.remove('opacity-0', 'pointer-events-none');
             content.classList.remove('scale-90');
@@ -601,7 +741,6 @@
     }
 
     function saveSettings() {
-        // 1. 글씨 표시 옵션
         const option = document.querySelector('input[name="typing-option"]:checked').value;
         allowTyping = (option === 'allow');
         try { localStorage.setItem('kb_typingOption', option); } catch(e) {}
@@ -617,18 +756,15 @@
             typingArea.style.color = '#55efc4';
         }
 
-        // 2. 단축키 차단 옵션
         preventShortcuts = document.getElementById('prevent-shortcut-option').checked;
         try { localStorage.setItem('kb_shortcut', preventShortcuts); } catch(e) {}
 
-        // 3. 제목 설정 (v2 키를 사용하여 강제로 제목 갱신)
         if (titleInputField.value.trim() !== "") {
             appMainTitle.innerText = titleInputField.value;
             document.title = titleInputField.value; 
             try { localStorage.setItem('kb_title_v2', titleInputField.value); } catch(e) {}
         }
 
-        // 4. 타건음 설정 저장
         currentSoundType = soundSelectField.value;
         try { localStorage.setItem('kb_sound', currentSoundType); } catch(e) {}
         
@@ -671,14 +807,11 @@
     // 키코드 정규화
     // ==========================================
     function getVirtualKeyCode(e) {
-        // ★ 우측 Shift 등 물리적 위치(code)를 가장 우선하여 정확히 인식하도록 수정
         if (e.code === 'ShiftRight') return 'ShiftRight';
         if (e.code === 'ShiftLeft') return 'ShiftLeft';
-        
         if (e.key === 'Shift') {
             return e.location === 2 ? 'ShiftRight' : 'ShiftLeft';
         }
-        
         if (e.key === 'Fn' || e.code === 'Fn' || e.key === 'WakeUp') return 'Fn';
         if (e.code === 'Lang1' || e.code === 'HangulMode' || e.code === 'KanaMode' || e.key === 'Hangul' || e.keyCode === 21 || (e.code === 'AltRight' && e.key === 'Process')) return 'Lang1';
         if (e.code === 'AltRight') return 'Lang1';
@@ -733,7 +866,6 @@
         
         const virtualCode = getVirtualKeyCode(e);
 
-        // ★ 한/영, 한자 키 연타 인식 오류 해결 (운영체제가 keyup을 먹는 현상 방지)
         let isKeyRepeat = e.repeat;
         if (virtualCode === 'Lang1' || virtualCode === 'Lang2') {
             isKeyRepeat = false; 
@@ -750,10 +882,9 @@
             }
         }
         
-        // ★ 한/영키 연타 시 모드가 제대로 변경되도록 디바운스(안전장치) 적용
         if (virtualCode === 'Lang1') {
             const now = Date.now();
-            if (now - lastLang1Time > 200) { // 0.2초 간격
+            if (now - lastLang1Time > 200) { 
                 toggleKoreanMode();
                 lastLang1Time = now;
             }
@@ -790,7 +921,6 @@
         const keyElement = document.querySelector(`.key[data-code="${virtualCode}"]`);
         
         if (keyElement) {
-            // ★ PrintScreen 예외 처리 (OS가 keydown을 가로채기 때문에 keyup에서 작동 시킴)
             if (virtualCode === 'PrintScreen' && !keyElement.classList.contains('active')) {
                 playTypeSound();
                 keyElement.classList.add('active');
